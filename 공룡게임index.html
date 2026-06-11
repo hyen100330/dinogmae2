@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>급식실 공룡 달리기 - 2D 그래픽 에디션</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&family=Noto+Sans+KR:wght@450;700;900&display=swap');
+        
+        .font-game {
+            font-family: 'Fredoka One', 'Noto Sans KR', sans-serif;
+        }
+        
+        canvas {
+            touch-action: none;
+        }
+    </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col justify-between font-sans select-none overflow-x-hidden">
+
+    <!-- 헤더 영역 -->
+    <header class="bg-slate-850 border-b border-slate-700 py-4 px-6 shadow-md">
+        <div class="max-w-4xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="bg-emerald-500 p-2.5 rounded-xl text-slate-950 animate-bounce">
+                    <i data-lucide="sparkles" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-black text-white tracking-tight flex items-center gap-2">
+                        급식실 공룡 달리기 <span class="text-xs bg-amber-500 text-slate-900 px-2 py-0.5 rounded font-bold">2D Graphic Ver.</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">장애물 추가 & 실시간 가속도 기능 탑재</p>
+                </div>
+            </div>
+            
+            <div class="flex items-center gap-2 text-xs bg-emerald-500/10 px-3 py-1.5 rounded-full border border-emerald-500/30">
+                <span class="inline-block w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span class="text-emerald-300 font-bold">점수 저장 API 활성화됨</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- 메인 게임 영역 -->
+    <main class="max-w-4xl w-full mx-auto px-4 py-6 flex-grow flex flex-col gap-6">
+        
+        <!-- 게임 화면 상자 -->
+        <div class="bg-slate-800 rounded-3xl border-2 border-slate-700 shadow-2xl p-4 md:p-6 relative overflow-hidden flex flex-col">
+            <!-- 계측기 판넬 -->
+            <div class="flex justify-between items-center mb-4 px-2">
+                <div class="flex items-center gap-2">
+                    <div class="bg-slate-700 px-3 py-1.5 rounded-xl border border-slate-600 flex items-center gap-1.5 text-xs">
+                        <i data-lucide="user" class="w-4 h-4 text-emerald-400"></i>
+                        <span id="playerDisplay" class="font-bold text-slate-200">GUEST</span>
+                    </div>
+                    <div id="speedIndicator" class="bg-amber-500/10 text-amber-400 px-3 py-1.5 rounded-xl border border-amber-500/20 text-xs font-bold hidden sm:block">
+                        SPEED: <span id="speedVal">1.0</span>x
+                    </div>
+                </div>
+                <div class="flex gap-5 font-game text-sm tracking-wide">
+                    <span class="text-slate-500">HI <span id="hiScoreDisplay" class="text-amber-400 font-black">00000</span></span>
+                    <span class="text-slate-200">SCORE <span id="scoreDisplay" class="text-emerald-400 font-black">00000</span></span>
+                </div>
+            </div>
+
+            <!-- 게임 전용 캔버스 뷰 -->
+            <div class="relative w-full bg-gradient-to-b from-sky-950 via-slate-950 to-emerald-950/20 rounded-2xl overflow-hidden border border-slate-700" style="height: 280px;">
+                <canvas id="gameCanvas" class="w-full h-full block"></canvas>
+                
+                <!-- 게임 오버레이 (대기화면 / 게임오버) -->
+                <div id="gameOverlay" class="absolute inset-0 bg-slate-950/85 backdrop-blur-sm flex flex-col items-center justify-center text-center p-4">
+                    <!-- 시작 입력 폼 -->
+                    <div id="overlayInit">
+                        <div class="relative w-20 h-20 mx-auto mb-3 flex items-center justify-center bg-emerald-500/10 rounded-full border-2 border-emerald-500/30">
+                            <i data-lucide="play" class="w-10 h-10 text-emerald-400 cursor-pointer animate-pulse" onclick="initAndStartGame()"></i>
+                        </div>
+                        <h2 class="text-xl font-extrabold mb-1 text-white">공룡 급식 대작전!</h2>
+                        <p class="text-xs text-slate-400 mb-5">급식소 문이 닫히기 전에 장애물을 피해 달리세요!</p>
+                        
+                        <div class="flex flex-col sm:flex-row gap-2 max-w-xs mx-auto">
+                            <input type="text" id="playerNameInput" placeholder="공룡 이름 입력" value="맛도리공룡" maxlength="8" class="bg-slate-800 border border-slate-700 text-white rounded-xl px-4 py-2.5 text-sm w-full focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            <button onclick="initAndStartGame()" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black px-5 py-2.5 rounded-xl text-sm transition-all shadow-lg">출발</button>
+                        </div>
+                    </div>
+
+                    <!-- 오버 화면 -->
+                    <div id="overlayOver" class="hidden">
+                        <div class="text-rose-500 font-game text-3xl font-black tracking-widest mb-3">GAME OVER</div>
+                        <p class="text-sm text-slate-300 mb-1">획득한 최종 점수: <span id="finalScore" class="font-extrabold text-emerald-400 text-lg">0</span>점</p>
+                        <p id="savingStatus" class="text-xs text-amber-400 mb-5 h-4 font-bold"></p>
+                        
+                        <div class="flex flex-wrap justify-center gap-3">
+                            <button onclick="restartGame()" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black px-5 py-3 rounded-2xl text-sm flex items-center gap-2 transition-all shadow-md">
+                                <i data-lucide="rotate-ccw" class="w-4 h-4"></i> 다시 달리기
+                            </button>
+                            <button onclick="changePlayerName()" class="bg-slate-700 hover:bg-slate-600 text-white font-bold px-5 py-3 rounded-2xl text-sm transition-all">
+                                이름 바꾸기
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 플레이 콘트롤러 모바일 가이드 및 컨트롤 패드 -->
+            <div class="mt-4 flex flex-col sm:flex-row justify-between items-center gap-4 border-t border-slate-700/50 pt-4">
+                <div class="flex flex-wrap gap-4 text-xs text-slate-400">
+                    <span class="flex items-center gap-1.5"><i data-lucide="keyboard" class="w-4 h-4 text-emerald-400"></i> 점프: <kbd class="bg-slate-700 px-2 py-0.5 rounded border border-slate-500 text-white">Space</kbd> / <kbd class="bg-slate-700 px-2 py-0.5 rounded border border-slate-500 text-white">↑</kbd></span>
+                    <span class="flex items-center gap-1.5"><i data-lucide="keyboard" class="w-4 h-4 text-amber-400"></i> 숙이기: <kbd class="bg-slate-700 px-2 py-0.5 rounded border border-slate-500 text-white">↓</kbd> (익룡 회피 가능)</span>
+                </div>
+                
+                <!-- 모바일용 대형 스크린 터치 키패드 -->
+                <div class="flex gap-2 w-full sm:w-auto">
+                    <button id="touchJumpBtn" class="flex-1 sm:flex-none bg-emerald-500/20 active:bg-emerald-500 text-emerald-300 active:text-slate-950 border border-emerald-500/30 px-6 py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-1.5 transition-all">
+                        <i data-lucide="chevrons-up" class="w-4 h-4"></i> 점프 (터치)
+                    </button>
+                    <button id="touchDuckBtn" class="flex-1 sm:flex-none bg-amber-500/20 active:bg-amber-500 text-amber-300 active:text-slate-950 border border-amber-500/30 px-6 py-3 rounded-2xl text-sm font-bold flex items-center justify-center gap-1.5 transition-all">
+                        <i data-lucide="chevrons-down" class="w-4 h-4"></i> 숙이기 (터치)
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 하단 데이터 패널 -->
+        <div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+            
+            <!-- 리더보드 -->
+            <div class="bg-slate-800 rounded-3xl border border-slate-700 p-5 md:col-span-7 flex flex-col justify-between">
+                <div>
+                    <div class="flex items-center justify-between mb-4 pb-3 border-b border-slate-700">
+                        <h3 class="font-bold text-base flex items-center gap-2 text-amber-400">
+                            <i data-lucide="medal" class="w-5 h-5 text-amber-500"></i> 실시간 명예의 전당
+                        </h3>
+                        <span class="text-xs bg-slate-700 px-2.5 py-1 rounded-full text-slate-300">Top 5</span>
+                    </div>
+                    
+                    <div id="leaderboardList" class="space-y-2">
+                        <!-- 동적 순위표 엘리먼트 -->
+                    </div>
+                </div>
+                
+                <div class="mt-4 pt-3 border-t border-slate-700/50 flex justify-between items-center text-xs text-slate-500">
+                    <span>* 브라우저 캐시에 실시간 자동 백업됩니다.</span>
+                    <button onclick="clearLeaderboard()" class="text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> 전체 삭제
+                    </button>
+                </div>
+            </div>
+
+            <!-- 시트 업로드 가상 덤프 -->
+            <div class="bg-slate-800 rounded-3xl border border-slate-700 p-5 md:col-span-5 flex flex-col justify-between">
+                <div>
+                    <h3 class="font-bold text-base flex items-center gap-2 mb-2 text-emerald-400">
+                        <i data-lucide="database" class="w-5 h-5 text-emerald-500"></i> Google Sheets API 로그
+                    </h3>
+                    <p class="text-xs text-slate-400 mb-4">점수 전송 이벤트 발생 시 구글 앱스 스크립트로 도달할 페이로드 객체 구조입니다.</p>
+                    
+                    <div id="sheetLogs" class="bg-slate-950 rounded-2xl p-4 h-44 overflow-y-auto text-xs font-mono text-emerald-400 space-y-2 border border-slate-800">
+                        <div class="text-slate-600">[SYSTEM] API 로그 터미널 활성화...</div>
+                    </div>
+                </div>
+
+                <div class="mt-4 text-xs bg-slate-900/40 p-3 rounded-xl border border-slate-750 text-slate-400 leading-relaxed">
+                    <p class="font-bold text-slate-300 mb-1">🔧 Apps Script 연동 팁</p>
+                    시트에 즉각적인 배포를 하려면 코드 최하단의 <code class="bg-slate-800 px-1 py-0.5 rounded text-amber-400">google.script.run</code> 매직 인터페이스 주석 부분을 해제하고 사용해 주세요.
+                </div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- 커스텀 알림 모달 -->
+    <div id="customModal" class="fixed inset-0 bg-black/75 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden">
+        <div class="bg-slate-800 border-2 border-slate-700 rounded-3xl max-w-sm w-full p-6 text-center shadow-2xl">
+            <div class="bg-rose-500/10 text-rose-400 p-3.5 rounded-full w-14 h-14 mx-auto mb-4 flex items-center justify-center border border-rose-500/20">
+                <i data-lucide="alert-triangle" class="w-7 h-7"></i>
+            </div>
+            <h4 id="modalTitle" class="text-lg font-black text-white mb-2">알림</h4>
+            <p id="modalMessage" class="text-sm text-slate-300 mb-6 leading-relaxed"></p>
+            <button onclick="closeModal()" class="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-black px-6 py-3 rounded-2xl text-sm transition-all w-full">
+                확인
+            </button>
+        </div>
+    </div>
+
+    <!-- 푸터 -->
+    <footer class="bg-slate-950 text-slate-600 text-center py-4 border-t border-slate-800/80 text-xs mt-10">
+        <p>&copy; 2026 School Lunch Dino 2D. Custom built for Spreadsheet Sandboxing.</p>
+    </footer>
+
+    <!-- 이미지 로딩을 위한 메모리 내 SVG 그래픽 렌더러 -->
+    <script>
+        // --- [SVG 2D 이미지 리소스 정의] ---
+        // 1. 달리는 공룡 프레임 1
+        const svgDino1 = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" width="60" height="60">
+            <path d="M25 5h15v15H25z" fill="#10B981"/>
+            <path d="M30 9h10v2H30z" fill="#047857"/>
+            <circle cx="34" cy="9" r="2.5" fill="#ffffff"/>
+            <circle cx="34" cy="9" r="1" fill="#000000"/>
+            <path d="M20 20h25v15H20z" fill="#059669"/>
+            <path d="M10 23h10v6H10z" fill="#047857"/>
+            <path d="M25 35h4v15h-4z" fill="#10B981"/>
+            <path d="M35 35h4v10h-4z" fill="#059669"/>
+            <path d="M23 47h6v3h-6z" fill="#047857"/>
+            <path d="M33 42h6v3h-6z" fill="#047857"/>
+            <rect x="23" y="14" width="8" height="4" fill="#10B981" />
+        </svg>`;
+
+        // 2. 달리는 공룡 프레임 2
+        const svgDino2 = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" width="60" height="60">
+            <path d="M25 5h15v15H25z" fill="#10B981"/>
+            <path d="M30 9h10v2H30z" fill="#047857"/>
+            <circle cx="34" cy="9" r="2.5" fill="#ffffff"/>
+            <circle cx="34" cy="9" r="1" fill="#000000"/>
+            <path d="M20 20h25v15H20z" fill="#059669"/>
+            <path d="M10 23h10v6H10z" fill="#047857"/>
+            <path d="M25 35h4v10h-4z" fill="#059669"/>
+            <path d="M35 35h4v15h-4z" fill="#10B981"/>
+            <path d="M23 42h6v3h-6z" fill="#047857"/>
+            <path d="M33 47h6v3h-6z" fill="#047857"/>
+            <rect x="23" y="14" width="8" height="4" fill="#10B981" />
+        </svg>`;
+
+        // 3. 공룡 점프 프레임
+        const svgDinoJump = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" width="60" height="60">
+            <path d="M25 5h15v15H25z" fill="#10B981"/>
+            <path d="M30 9h10v2H30z" fill="#047857"/>
+            <circle cx="34" cy="9" r="2.5" fill="#ffffff"/>
+            <circle cx="34" cy="9" r="1" fill="#000000"/>
+            <path d="M20 20h25v15H20z" fill="#059669"/>
+            <path d="M10 20h10v6H10z" fill="#047857"/>
+            <path d="M23 35h5v8h-5z" fill="#10B981"/>
+            <path d="M32 35h5v8h-5z" fill="#059669"/>
+            <path d="M21 41h7v2h-7z" fill="#047857"/>
+            <path d="M30 41h7v2h-7z" fill="#047857"/>
+        </svg>`;
+
+        // 4. 공룡 엎드리기(Duck) 프레임
+        const svgDinoDuck = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 40" width="60" height="40">
+            <path d="M35 10h18v12H35z" fill="#10B981"/>
+            <circle cx="44" cy="14" r="2" fill="#ffffff"/>
+            <circle cx="44" cy="14" r="0.8" fill="#000000"/>
+            <path d="M12 18h25v15H12z" fill="#059669"/>
+            <path d="M4 20h10v5H4z" fill="#047857"/>
+            <path d="M16 33h4v5h-4z" fill="#10B981"/>
+            <path d="M28 33h4v5h-4z" fill="#059669"/>
+        </svg>`;
+
+        // 5. 공룡 충돌 사망 프레임
+        const svgDinoDead = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" width="60" height="60">
+            <path d="M20 15h15v15H20z" fill="#ef4444"/>
+            <!-- X자 눈 -->
+            <path d="M24 20l4 4m0-4l-4 4" stroke="#ffffff" stroke-width="2"/>
+            <path d="M15 30h25v15H15z" fill="#b91c1c"/>
+            <path d="M8 32h8v5H8z" fill="#991b1b"/>
+            <path d="M18 45h5v10h-5z" fill="#ef4444"/>
+            <path d="M30 45h5v8h-5z" fill="#b91c1c"/>
+        </svg>`;
+
+        // 6. 선인장 장애물 1(대)
+        const svgCactus1 = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 30 50" width="30" height="50">
+            <path d="M11 5h8v45h-8z" fill="#eab308"/>
+            <path d="M4 18h8v6H4z" fill="#ca8a04"/>
+            <path d="M4 10h4v10H4z" fill="#ca8a04"/>
+            <path d="M18 24h8v6H18z" fill="#ca8a04"/>
+            <path d="M22 16h4v10H22z" fill="#ca8a04"/>
+            <circle cx="15" cy="10" r="1.5" fill="#facc15"/>
+            <circle cx="6" cy="12" r="1.5" fill="#facc15"/>
+            <circle cx="24" cy="18" r="1.5" fill="#facc15"/>
+        </svg>`;
+
+        // 7. 선인장 장애물 2(소)
+        const svgCactus2 = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25 35" width="25" height="35">
+            <path d="M9 4h7v31H9z" fill="#d97706"/>
+            <path d="M3 12h7v4H3z" fill="#b45309"/>
+            <path d="M3 7h3v6H3z" fill="#b45309"/>
+            <path d="M16 16h6v4H16z" fill="#b45309"/>
+            <path d="M19 11h3v6H19z" fill="#b45309"/>
+        </svg>`;
+
+        // 8. 날아다니는 익룡 (개선 프레임 1)
+        const svgBird1 = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 35" width="45" height="35">
+            <path d="M15 12h18v6H15z" fill="#f87171"/>
+            <path d="M8 14h8v3H8z" fill="#ef4444"/>
+            <path d="M22 4h4v10h-4z" fill="#ef4444"/>
+            <path d="M20 18h8v12h-8z" fill="#b91c1c"/>
+            <circle cx="27" cy="14" r="1" fill="#ffffff"/>
+        </svg>`;
+
+        // 9. 날아다니는 익룡 (개선 프레임 2)
+        const svgBird2 = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 35" width="45" height="35">
+            <path d="M15 12h18v6H15z" fill="#f87171"/>
+            <path d="M8 14h8v3H8z" fill="#ef4444"/>
+            <path d="M22 16h4v12h-4z" fill="#ef4444"/>
+            <path d="M20 2h8v12h-8z" fill="#b91c1c"/>
+            <circle cx="27" cy="14" r="1" fill="#ffffff"/>
+        </svg>`;
+
+        // 10. 새로운 장애물: 급식 수레(롤러 카트)
+        const svgCart = `
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 45 40" width="45" height="40">
+            <rect x="5" y="8" width="35" height="22" rx="3" fill="#64748b"/>
+            <rect x="10" y="12" width="25" height="14" rx="2" fill="#334155"/>
+            <!-- 손잡이 -->
+            <path d="M40 14h3v8h-3" stroke="#94a3b8" stroke-width="2" fill="none"/>
+            <!-- 바퀴 -->
+            <circle cx="12" cy="34" r="4" fill="#000000"/>
+            <circle cx="12" cy="34" r="1.5" fill="#cbd5e1"/>
+            <circle cx="33" cy="34" r="4" fill="#000000"/>
+            <circle cx="33" cy="34" r="1.5" fill="#cbd5e1"/>
+            <!-- 내부 급식 메뉴판 -->
+            <rect x="14" y="15" width="10" height="4" fill="#e2e8f0"/>
+            <rect x="14" y="21" width="17" height="2" fill="#ef4444"/>
+        </svg>`;
+
+        // SVG 문자열을 HTML Image 엘리먼트로 변환시키는 헬퍼
+        function createSvgImage(svgContent) {
+            const img = new Image();
+            img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svgContent);
+            return img;
+        }
+
+        // 이미지 로드 매핑
+        const images = {
+            dinoRun1: createSvgImage(svgDino1),
+            dinoRun2: createSvgImage(svgDino2),
+            dinoJump: createSvgImage(svgDinoJump),
+            dinoDuck: createSvgImage(svgDinoDuck),
+            dinoDead: createSvgImage(svgDinoDead),
+            cactus1: createSvgImage(svgCactus1),
+            cactus2: createSvgImage(svgCactus2),
+            bird1: createSvgImage(svgBird1),
+            bird2: createSvgImage(svgBird2),
+            cart: createSvgImage(svgCart)
+        };
+    </script>
+
+    <!-- 실 게임 플레이 연산 구동 엔진 -->
+    <script>
+        // 캔버스 참조 바인딩
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        // 상태값 관리자
+        let gameLoopId;
+        let score = 0;
+        let hiScore = localStorage.getItem("dino_hi_score_2d") ? parseInt(localStorage.getItem("dino_hi_score_2d")) : 0;
+        let gameRunning = false;
+        let isGameOver = false;
+        let lastTime = 0;
+
+        // 주요 변수 선언
+        let dino;
+        let obstacles = [];
+        let clouds = [];
+        let particles = [];
+        let groundX = 0;
+        let spawnTimer = 0;
+        let scoreTimer = 0;
+
+        // 물리 법칙 상수 및 속도 상수 조정
+        const BASE_GRAVITY = 0.52;
+        const JUMP_POWER = -11;
+        let baseGroundY = 240; // 바닥 세로선 절대선 좌표
+        let gameSpeed = 6;
+        let initialSpeed = 6.5;
+
+        // 랭킹 목업 DB (기본 생성값 정의)
+        let leaderboards = JSON.parse(localStorage.getItem("dino_leaderboard_2d")) || [
+            { name: "식단왕", score: 2500, date: "2026-06-11" },
+            { name: "영양교사", score: 1800, date: "2026-06-11" },
+            { name: "치즈돈까스", score: 1120, date: "2026-06-10" },
+            { name: "꼬마식객", score: 620, date: "2026-06-11" },
+            { name: "체육부장", score: 350, date: "2026-06-09" }
+        ];
+
+        // 초기 수치 출력 바인딩
+        document.getElementById("hiScoreDisplay").innerText = String(hiScore).padStart(5, '0');
+        renderLeaderboard();
+
+        // 브라우저 윈도우 크기에 비례하는 고해상도 리사이징 보정
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+            baseGroundY = canvas.height - 40; // 하부 영역 여유 공간 마련
+            if (dino) {
+                if (dino.isDucking) {
+                    dino.y = baseGroundY - dino.duckHeight;
+                } else {
+                    dino.y = baseGroundY - dino.height;
+                }
+            }
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // 커스텀 모달 호출 인터페이스
+        function showModal(title, msg) {
+            document.getElementById("modalTitle").innerText = title;
+            document.getElementById("modalMessage").innerText = msg;
+            document.getElementById("customModal").classList.remove("hidden");
+        }
+        function closeModal() {
+            document.getElementById("customModal").classList.add("hidden");
+        }
+
+        // --- 점프 및 숙이기 컨트롤러 래핑 ---
+        function jumpAction() {
+            if (!gameRunning || isGameOver) return;
+            if (!dino.isJumping && !dino.isDucking) {
+                dino.vy = JUMP_POWER;
+                dino.isJumping = true;
+                triggerJumpSound();
+            }
+        }
+
+        function duckAction(isDuck) {
+            if (!gameRunning || isGameOver) return;
+            dino.isDucking = isDuck;
+            if (isDuck) {
+                dino.isJumping = false; // 공중에 있으면 비강제성 바닥 래핑
+            }
+        }
+
+        // 키보드 방향키 바인딩 감지자
+        window.addEventListener("keydown", (e) => {
+            if (["Space", "ArrowUp"].includes(e.code)) {
+                e.preventDefault();
+                jumpAction();
+            }
+            if (e.code === "ArrowDown") {
+                e.preventDefault();
+                duckAction(true);
+            }
+        });
+
+        window.addEventListener("keyup", (e) => {
+            if (e.code === "ArrowDown") {
+                duckAction(false);
+            }
+        });
+
+        // 가상 키보드 터치식 모바일 바인딩
+        const tJump = document.getElementById("touchJumpBtn");
+        const tDuck = document.getElementById("touchDuckBtn");
+
+        tJump.addEventListener("touchstart", (e) => { e.preventDefault(); jumpAction(); });
+        tJump.addEventListener("mousedown", (e) => { e.preventDefault(); jumpAction(); });
+
+        tDuck.addEventListener("touchstart", (e) => { e.preventDefault(); duckAction(true); });
+        tDuck.addEventListener("touchend", (e) => { e.preventDefault(); duckAction(false); });
+        tDuck.addEventListener("mousedown", (e) => { e.preventDefault(); duckAction(true); });
+        tDuck.addEventListener("mouseup", (e) => { e.preventDefault(); duckAction(false); });
+
+        // 점프 시 효과음 트리거
+        function triggerJumpSound() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.type = "sine";
+                osc.frequency.setValueAtTime(140, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(550, audioCtx.currentTime + 0.12);
+                gain.gain.setValueAtTime(0.06, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.12);
+            } catch (e) {}
+        }
+
+        // 충돌 시 효과음 트리거
+        function triggerCrashSound() {
+            try {
+                const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.type = "sawtooth";
+                osc.frequency.setValueAtTime(320, audioCtx.currentTime);
+                osc.frequency.setValueAtTime(90, audioCtx.currentTime + 0.1);
+                gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.35);
+            } catch (e) {}
+        }
+
+        // 로그인 분기 및 데이터 인계
+        function initAndStartGame() {
+            const val = document.getElementById("playerNameInput").value.trim();
+            if (!val) {
+                showModal("닉네임 등록 유실", "점수 기록 경쟁을 위해 공룡 이름을 1자 이상 적어주세요!");
+                return;
+            }
+            window.playerName = val;
+            document.getElementById("playerDisplay").innerText = val.toUpperCase();
+            document.getElementById("gameOverlay").classList.add("hidden");
+            
+            addLog(`[SYSTEM] 신규 참가자 "${val}" 등록 및 세션 로드.`);
+            restartGame();
+        }
+
+        function changePlayerName() {
+            document.getElementById("overlayOver").classList.add("hidden");
+            document.getElementById("overlayInit").classList.remove("hidden");
+        }
+
+        // 게임 리셋 및 초기값 분기 선언
+        function restartGame() {
+            document.getElementById("gameOverlay").classList.add("hidden");
+            
+            score = 0;
+            gameSpeed = initialSpeed;
+            isGameOver = false;
+            gameRunning = true;
+            obstacles = [];
+            particles = [];
+            spawnTimer = 0;
+            scoreTimer = 0;
+            
+            dino = {
+                x: 60,
+                y: baseGroundY - 48,
+                width: 48,
+                height: 48,
+                duckWidth: 54,
+                duckHeight: 32,
+                vy: 0,
+                isJumping: false,
+                isDucking: false,
+                legFrame: 0,
+                animTimer: 0
+            };
+
+            clouds = [
+                { x: 120, y: 40, speed: 0.3, size: 50 },
+                { x: 420, y: 60, speed: 0.2, size: 70 },
+                { x: 720, y: 30, speed: 0.25, size: 45 }
+            ];
+
+            addLog(`[ENGINE] 게임 세션 구동. 가속 모듈 작동 개시.`);
+            lastTime = performance.now();
+            
+            if (gameLoopId) cancelAnimationFrame(gameLoopId);
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+
+        // 60FPS 보정 업데이트 루프
+        function gameLoop(timestamp) {
+            if (!gameRunning) return;
+            
+            const dt = timestamp - lastTime;
+            lastTime = timestamp;
+
+            updateEntities(dt);
+            renderGraphics();
+
+            gameLoopId = requestAnimationFrame(gameLoop);
+        }
+
+        // 데이터 연산 코어
+        function updateEntities(dt) {
+            // 지속 시간 대비 가속도 시스템
+            gameSpeed += 0.0006 * (dt / 16.66); 
+            document.getElementById("speedVal").innerText = (gameSpeed / initialSpeed).toFixed(2);
+
+            // 점수 획득식 계산
+            scoreTimer += dt;
+            if (scoreTimer >= 85) { 
+                score += 1;
+                scoreTimer = 0;
+                document.getElementById("scoreDisplay").innerText = String(score).padStart(5, '0');
+            }
+
+            // 가로바닥 배경 무한 무빙 루프
+            groundX = (groundX - gameSpeed) % canvas.width;
+
+            // 공룡의 고도 연산
+            dino.vy += BASE_GRAVITY;
+            dino.y += dino.vy;
+
+            // 바닥 좌표 제어 연동
+            const targetY = dino.isDucking 
+                ? baseGroundY - dino.duckHeight 
+                : baseGroundY - dino.height;
+
+            if (dino.y > targetY) {
+                dino.y = targetY;
+                dino.vy = 0;
+                dino.isJumping = false;
+            }
+
+            // 다리 애니메이션 연동 
+            dino.animTimer += dt;
+            if (dino.animTimer >= 90) {
+                dino.legFrame = (dino.legFrame + 1) % 2;
+                dino.animTimer = 0;
+            }
+
+            // 파티클(먼지) 가동 처리
+            if (!dino.isJumping && !dino.isDucking && Math.random() < 0.15) {
+                particles.push({
+                    x: dino.x + 5,
+                    y: baseGroundY - 2,
+                    vx: -gameSpeed * 0.4 - Math.random() * 2,
+                    vy: -Math.random() * 2,
+                    radius: Math.random() * 3 + 2,
+                    alpha: 0.8
+                });
+            }
+
+            // 구름 업데이트
+            clouds.forEach(c => {
+                c.x -= c.speed;
+                if (c.x + c.size < 0) {
+                    c.x = canvas.width + 60;
+                    c.y = Math.random() * 70 + 20;
+                }
+            });
+
+            // 파티클 물리 업데이트
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.alpha -= 0.02;
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+
+            // 장애물 생성 (생성 거리가 동적 조율됨)
+            spawnTimer += dt;
+            const dynamicInterval = Math.max(900, 2200 - (gameSpeed * 90));
+            if (spawnTimer >= dynamicInterval) {
+                spawnObstacle();
+                spawnTimer = 0;
+            }
+
+            // 장애물 갱신 및 충돌 검사
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                const obs = obstacles[i];
+                obs.x -= gameSpeed;
+
+                // 새 날개 애니메이션
+                if (obs.type === "pterodactyl") {
+                    obs.animTimer += dt;
+                    if (obs.animTimer >= 140) {
+                        obs.wingFrame = (obs.wingFrame + 1) % 2;
+                        obs.animTimer = 0;
+                    }
+                }
+
+                // 충돌 히트박스 영역 계산
+                const dBox = dino.isDucking 
+                    ? { x: dino.x + 6, y: dino.y + 2, w: dino.duckWidth - 12, h: dino.duckHeight - 4 }
+                    : { x: dino.x + 6, y: dino.y + 4, w: dino.width - 12, h: dino.height - 8 };
+
+                const oBox = { x: obs.x + 4, y: obs.y + 4, w: obs.width - 8, h: obs.height - 8 };
+
+                // 최종 교차 충돌 검증
+                if (dBox.x < oBox.x + oBox.w && dBox.x + dBox.w > oBox.x &&
+                    dBox.y < oBox.y + oBox.h && dBox.y + dBox.h > oBox.y) {
+                    processGameOver();
+                    return;
+                }
+
+                // 소멸
+                if (obs.x + obs.width < -50) {
+                    obstacles.splice(i, 1);
+                }
+            }
+        }
+
+        // 장애물 다변화 스폰 로직
+        function spawnObstacle() {
+            const list = ["smallCactus", "doubleCactus", "giantCactus", "pterodactyl_low", "pterodactyl_mid", "pterodactyl_high", "lunchCart"];
+            
+            const maxRange = score < 150 ? 3 : (score < 400 ? 5 : list.length);
+            const choice = list[Math.floor(Math.random() * maxRange)];
+
+            let obs = {
+                type: "",
+                x: canvas.width + 20,
+                width: 30,
+                height: 45,
+                y: 0,
+                wingFrame: 0,
+                animTimer: 0
+            };
+
+            switch(choice) {
+                case "smallCactus":
+                    obs.type = "cactus_small";
+                    obs.width = 24;
+                    obs.height = 36;
+                    obs.y = baseGroundY - obs.height;
+                    break;
+                case "doubleCactus":
+                    obs.type = "cactus_double";
+                    obs.width = 44;
+                    obs.height = 38;
+                    obs.y = baseGroundY - obs.height;
+                    break;
+                case "giantCactus":
+                    obs.type = "cactus_giant";
+                    obs.width = 32;
+                    obs.height = 54;
+                    obs.y = baseGroundY - obs.height;
+                    break;
+                case "pterodactyl_low":
+                    obs.type = "pterodactyl";
+                    obs.width = 42;
+                    obs.height = 30;
+                    obs.y = baseGroundY - 32;
+                    break;
+                case "pterodactyl_mid":
+                    obs.type = "pterodactyl";
+                    obs.width = 42;
+                    obs.height = 30;
+                    obs.y = baseGroundY - 58;
+                    break;
+                case "pterodactyl_high":
+                    obs.type = "pterodactyl";
+                    obs.width = 42;
+                    obs.height = 30;
+                    obs.y = baseGroundY - 85;
+                    break;
+                case "lunchCart":
+                    obs.type = "cart";
+                    obs.width = 45;
+                    obs.height = 40;
+                    obs.y = baseGroundY - obs.height;
+                    break;
+            }
+
+            obstacles.push(obs);
+        }
+
+        // 전체 렌더링 파이프라인
+        function renderGraphics() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 노을빛 배경 그라디언트
+            const skyGrad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            skyGrad.addColorStop(0, "#082f49"); 
+            skyGrad.addColorStop(0.6, "#0f172a"); 
+            skyGrad.addColorStop(1, "#1c1917"); 
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // 구름
+            ctx.fillStyle = "rgba(255, 255, 255, 0.08)";
+            clouds.forEach(c => {
+                ctx.beginPath();
+                ctx.arc(c.x, c.y, c.size * 0.4, 0, Math.PI * 2);
+                ctx.arc(c.x + c.size * 0.35, c.y - c.size * 0.1, c.size * 0.5, 0, Math.PI * 2);
+                ctx.arc(c.x + c.size * 0.7, c.y, c.size * 0.35, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 바닥 수평선
+            ctx.strokeStyle = "#475569";
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.moveTo(0, baseGroundY);
+            ctx.lineTo(canvas.width, baseGroundY);
+            ctx.stroke();
+
+            // 바닥 질감 타일링
+            ctx.fillStyle = "#334155";
+            for (let x = groundX; x < canvas.width + 100; x += 100) {
+                ctx.fillRect(x, baseGroundY + 4, 35, 3);
+                ctx.fillRect(x + 50, baseGroundY + 14, 15, 2);
+                ctx.fillRect(x + 15, baseGroundY + 22, 50, 1.5);
+            }
+
+            // 흙먼지 연출
+            particles.forEach(p => {
+                ctx.fillStyle = `rgba(226, 232, 240, ${p.alpha})`;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 1. 공룡 2D 드로잉 바인딩
+            let currentDinoImg = images.dinoRun1;
+            if (isGameOver) {
+                currentDinoImg = images.dinoDead;
+            } else if (dino.isJumping) {
+                currentDinoImg = images.dinoJump;
+            } else if (dino.isDucking) {
+                currentDinoImg = images.dinoDuck;
+            } else {
+                currentDinoImg = dino.legFrame === 0 ? images.dinoRun1 : images.dinoRun2;
+            }
+
+            const currentDinoW = dino.isDucking ? dino.duckWidth : dino.width;
+            const currentDinoH = dino.isDucking ? dino.duckHeight : dino.height;
+
+            ctx.drawImage(currentDinoImg, dino.x, dino.y, currentDinoW, currentDinoH);
+
+            // 2. 장애물 2D 드로잉 바인딩
+            obstacles.forEach(o => {
+                let currentObsImg;
+                if (o.type === "cactus_small") {
+                    currentObsImg = images.cactus2;
+                } else if (o.type === "cactus_double") {
+                    currentObsImg = images.cactus2; 
+                } else if (o.type === "cactus_giant") {
+                    currentObsImg = images.cactus1; 
+                } else if (o.type === "pterodactyl") {
+                    currentObsImg = o.wingFrame === 0 ? images.bird1 : images.bird2;
+                } else if (o.type === "cart") {
+                    currentObsImg = images.cart;
+                }
+
+                if (currentObsImg) {
+                    ctx.drawImage(currentObsImg, o.x, o.y, o.width, o.height);
+                }
+            });
+        }
+
+        // 게임오버 트리거 및 가상 API 송출
+        function processGameOver() {
+            gameRunning = false;
+            isGameOver = true;
+            triggerCrashSound();
+
+            if (gameLoopId) cancelAnimationFrame(gameLoopId);
+            renderGraphics();
+
+            if (score > hiScore) {
+                hiScore = score;
+                localStorage.setItem("dino_hi_score_2d", hiScore);
+                document.getElementById("hiScoreDisplay").innerText = String(hiScore).padStart(5, '0');
+                addLog(`[CONGRATS] 최고기록 신규 등재: ${hiScore}점`);
+            }
+
+            document.getElementById("finalScore").innerText = score;
+            document.getElementById("overlayInit").classList.add("hidden");
+            document.getElementById("overlayOver").classList.remove("hidden");
+            document.getElementById("gameOverlay").classList.remove("hidden");
+
+            mockGoogleSheetPost(window.playerName || "GUEST", score);
+        }
+
+        // 가상 시트 전송 로그 기록
+        function mockGoogleSheetPost(name, finalScore) {
+            document.getElementById("savingStatus").innerText = "구글 시트 수신처 물색 중...";
+            addLog(`[API] payload 준비 완료. GAS endpoint 로딩.`);
+            
+            const payload = {
+                action: "appendScore",
+                sheetName: "Scores",
+                data: {
+                    userName: name,
+                    score: finalScore,
+                    dateStamp: new Date().toISOString().substring(0, 10),
+                    engineVersion: "2D_Vector_Custom"
+                }
+            };
+            
+            setTimeout(() => {
+                document.getElementById("savingStatus").innerText = "Apps Script 데이터 갱신 중...";
+                addLog(`[API-POST] ${JSON.stringify(payload)}`);
+                
+                setTimeout(() => {
+                    document.getElementById("savingStatus").innerText = "✓ 구글 스프레드시트에 영구 저장 완료!";
+                    addLog(`[SUCCESS] Google Sheets "Scores" 탭에 신규 레코드 등록 성공.`);
+                    
+                    syncLeaderboard(name, finalScore);
+                }, 1000);
+            }, 700);
+
+            /* 실제 구글 시트 배포 연동 시 사용하는 구문 안내
+            if (typeof google !== 'undefined' && google.script && google.script.run) {
+                google.script.run
+                    .withSuccessHandler((updatedData) => {
+                        addLog("[NET] 시트 실시간 데이터 가변 수신 완료!");
+                    })
+                    .saveScore(name, finalScore);
+            }
+            */
+        }
+
+        // 순위 동기화
+        function syncLeaderboard(name, newScore) {
+            const todayStr = new Date().toISOString().substring(0, 10);
+            leaderboards.push({ name: name, score: newScore, date: todayStr });
+            
+            leaderboards.sort((a, b) => b.score - a.score);
+            leaderboards = leaderboards.slice(0, 5); 
+            
+            localStorage.setItem("dino_leaderboard_2d", JSON.stringify(leaderboards));
+            renderLeaderboard();
+        }
+
+        // 순위 뷰포트 그리기
+        function renderLeaderboard() {
+            const listContainer = document.getElementById("leaderboardList");
+            listContainer.innerHTML = "";
+
+            const badgeTemplates = [
+                '<div class="flex items-center justify-center w-6 h-6 rounded-lg bg-amber-400 text-slate-900 font-black text-xs">1</div>',
+                '<div class="flex items-center justify-center w-6 h-6 rounded-lg bg-slate-300 text-slate-950 font-black text-xs">2</div>',
+                '<div class="flex items-center justify-center w-6 h-6 rounded-lg bg-amber-700 text-white font-black text-xs">3</div>',
+                '<div class="flex items-center justify-center w-6 h-6 rounded-lg bg-slate-700 text-slate-300 font-bold text-xs">4</div>',
+                '<div class="flex items-center justify-center w-6 h-6 rounded-lg bg-slate-700 text-slate-300 font-bold text-xs">5</div>'
+            ];
+
+            leaderboards.forEach((item, index) => {
+                const selfHighlight = item.name === window.playerName;
+                const outlineColor = selfHighlight 
+                    ? 'bg-emerald-500/10 border-emerald-500/35 text-emerald-300' 
+                    : 'bg-slate-750/50 border-slate-750 text-slate-300';
+
+                listContainer.innerHTML += `
+                    <div class="flex items-center justify-between p-2.5 rounded-xl border ${outlineColor} transition-all duration-200 hover:scale-[1.01]">
+                        <div class="flex items-center gap-3">
+                            ${badgeTemplates[index] || `<span class="text-xs text-slate-500 w-6 text-center">${index+1}</span>`}
+                            <span class="font-bold text-sm text-white">${escapeString(item.name)}</span>
+                            <span class="text-[10px] text-slate-500 hidden sm:inline">${item.date}</span>
+                        </div>
+                        <span class="font-game text-xs text-amber-300 font-extrabold">${item.score} <span class="text-[10px] font-sans font-normal text-slate-400">점</span></span>
+                    </div>
+                `;
+            });
+        }
+
+        // 전체 랭킹 비우기
+        function clearLeaderboard() {
+            if (confirm("정말로 기록된 모든 랭킹 데이터베이스를 초기화하시겠습니까?")) {
+                localStorage.removeItem("dino_leaderboard_2d");
+                leaderboards = [
+                    { name: "영양교사", score: 100, date: "2026-06-11" }
+                ];
+                renderLeaderboard();
+                addLog("[SYSTEM] 명예의 전당 캐시 소거 완료.");
+            }
+        }
+
+        // 문자열 필터링 이스케이프
+        function escapeString(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+        }
+
+        // 하단 터미널 프린팅 로그
+        function addLog(msg) {
+            const terminal = document.getElementById("sheetLogs");
+            const timeObj = new Date();
+            const logTime = `${String(timeObj.getHours()).padStart(2, '0')}:${String(timeObj.getMinutes()).padStart(2, '0')}:${String(timeObj.getSeconds()).padStart(2, '0')}`;
+            
+            const line = document.createElement("div");
+            line.className = "border-b border-slate-900/60 pb-1 last:border-0";
+            line.innerHTML = `<span class="text-slate-500">[${logTime}]</span> ${escapeString(msg)}`;
+            
+            terminal.appendChild(line);
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+    </script>
+</body>
+</html>
